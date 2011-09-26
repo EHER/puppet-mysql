@@ -1,5 +1,8 @@
 Puppet module for MySQL
 =======================
 
-This is a simple Puppet module to manage MySQL. It currently does
-nothing more than manage installation of the MySQL server packages.
+This is a simple [Puppet][1] module to manage [MySQL][2]. It currently does
+little more than install the packages and enable the mysql service.
+
+[1]: http://www.puppetlabs.com/puppet
+[2]: http://www.mysql.com/
