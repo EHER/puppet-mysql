@@ -1,7 +1,7 @@
 class mysql::params {
 
 	$server_packages = $operatingsystem ? {
-		debian => ["mysql-server-5.1"]
+		debian => ["mysql-server"]
 	}
 
 	$server_services = $operatingsystem ? {
