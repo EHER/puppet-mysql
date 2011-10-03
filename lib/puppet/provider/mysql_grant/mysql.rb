@@ -75,10 +75,6 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		end
 	end
 
-	def destroy
-		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "REVOKE ALL ON '%s'.* FROM '%s@%s'" % [ @resource[:privileges], @resource[:database], @resource[:name], @resource[:host] ]
-	end
-
 	def row_exists?
 		name = split_name(@resource[:name])
 		fields = [:user, :host]
@@ -87,6 +83,7 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		end
 		not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", 'SELECT "1" FROM %s WHERE %s' % [ name[:type], fields.map do |f| "%s = '%s'" % [f, name[f]] end.join(' AND ')]).empty?
 	end
+
 
 	def all_privs_set?
 		all_privs = case split_name(@resource[:name])[:type]
@@ -155,8 +152,91 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		# puts "set:", set
 		stmt = stmt << set << where
 
-		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", stmt
+		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", stmt
 		mysql_flush
 	end
+
+
+	#
+	# Find the existing instances
+	#
+#	def self.user_line_to_hash(line)
+#		fields = line.chomp.split(/\t/)
+#		{
+#			:name => fields[0],
+#			:ensure => :present
+#		}
+#	end
+#	def self.db_line_to_hash(line)
+#		fields = line.chomp.split(/\t/)
+#		{
+#			:name => fields[0],
+#			:ensure => :present
+#		}
+#	end
+#
+#	def self.instances
+#		grants = []
+#
+#		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host) from user'"
+#		execpipe(cmd) do |process|
+#			process.each do |line|
+#				grants << new( query_line_to_hash(line) )
+#			end
+#		end
+#
+#		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host, "/", db) from db'"
+#		execpipe(cmd) do |process|
+#			process.each do |line|
+#				grants << new( query_line_to_hash(line) )
+#			end
+#		end
+#
+#		return grants
+#	end
+	
+	#
+	# Create a new resource.
+	#
+	def create
+		create_row
+		#mysql_flush
+	end
+	
+	#
+	# Destroy a resource
+	#
+	def destroy
+		name = split_name(@resource[:name])
+
+		case name[:type]
+		when :user
+			mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "DELETE FROM user WHERE host='%s' AND user='%s')" % [
+				name[:host], name[:user],
+			]
+		when :db
+			mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "DELETE FROM db WHERE host='%s' AND user='%s' AND db='%s'" % [
+				name[:host], name[:user], name[:db],
+			]
+		end
+		mysql_flush
+	end
+	
+	#
+	# Check whether a resource exists.
+	#
+	def exists?
+		#stmt = ''
+		#when :user
+			#stmt = 'SELECT \'1\' FROM user WHERE user="%s" AND host="%s"' % [ name[:user], name[:host] ]
+		#when :db
+			#stmt = 'SELECT \'1\' FROM db WHERE user="%s" AND host="%s" AND db="%s"' % [ name[:user], name[:host], name[:db] ]
+		#end
+
+		#not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", stmt).empty?
+		
+		row_exists?
+	end
+
 end
 
