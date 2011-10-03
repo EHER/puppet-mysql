@@ -29,17 +29,19 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 
 	desc "Uses mysql as database."
 
+	defaultfor :kernel => 'Linux'
+
 	commands :mysql => '/usr/bin/mysql'
 	commands :mysqladmin => '/usr/bin/mysqladmin'
 
-	def mysql_flush 
+	def mysql_flush
 		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
 	end
 
 	# this parses the
 	def split_name(string)
 		matches = /^([^@]*)@([^\/]*)(\/(.*))?$/.match(string).captures.compact
-		case matches.length 
+		case matches.length
 			when 2
 				{
 					:type => :user,
@@ -76,7 +78,7 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 	def destroy
 		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "REVOKE ALL ON '%s'.* FROM '%s@%s'" % [ @resource[:privileges], @resource[:database], @resource[:name], @resource[:host] ]
 	end
-	
+
 	def row_exists?
 		name = split_name(@resource[:name])
 		fields = [:user, :host]
@@ -99,7 +101,7 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		all_privs == privs
 	end
 
-	def privileges 
+	def privileges
 		name = split_name(@resource[:name])
 		privs = ""
 
@@ -110,7 +112,7 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 			privs = mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", 'select * from db where user="%s" and host="%s" and db="%s"' % [ name[:user], name[:host], name[:db] ]
 		end
 
-		if privs.match(/^$/) 
+		if privs.match(/^$/)
 			privs = [] # no result, no privs
 		else
 			# returns a line with field names and a line with values, each tab-separated
@@ -123,7 +125,7 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		privs.collect do |p| symbolize(p[0].downcase) end
 	end
 
-	def privileges=(privs) 
+	def privileges=(privs)
 		unless row_exists?
 			create_row
 		end
@@ -144,10 +146,10 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 			all_privs = MYSQL_DB_PRIVS
 		end
 
-		if privs[0] == :all 
+		if privs[0] == :all
 			privs = all_privs
 		end
-	
+
 		# puts "stmt:", stmt
 		set = all_privs.collect do |p| "%s = '%s'" % [p, privs.include?(p) ? 'Y' : 'N'] end.join(', ')
 		# puts "set:", set
@@ -157,3 +159,4 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		mysql_flush
 	end
 end
+
