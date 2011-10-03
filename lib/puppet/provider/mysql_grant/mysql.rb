@@ -3,11 +3,6 @@
 # Implement MySQL grant operations for MySQL (as if there's another choice).
 #
 
-# A grant is either global or per-db. This can be distinguished by the syntax
-# of the name:
-# 	user@host => global
-# 	user@host/db => per-db
-
 require 'puppet/provider/package'
 
 MYSQL_USER_PRIVS = [ :select_priv, :insert_priv, :update_priv, :delete_priv,
@@ -25,7 +20,7 @@ MYSQL_DB_PRIVS = [ :select_priv, :insert_priv, :update_priv, :delete_priv,
 	:show_view_priv, :create_routine_priv, :alter_routine_priv, :execute_priv
 ]
 
-Puppet::Type.type(:mysql_grant).provide(:mysql) do
+Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Package) do
 
 	desc "Uses mysql as database."
 
@@ -33,6 +28,41 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 
 	commands :mysql => '/usr/bin/mysql'
 	commands :mysqladmin => '/usr/bin/mysqladmin'
+
+	# Find the existing instances
+	def self.instances
+		grants = []
+		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host) from user'"
+		execpipe(cmd) do |process|
+			process.each do |line|
+				grants << new( user_line_to_hash(line) )
+			end
+		end
+		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host, \"/\", db) from db'"
+		execpipe(cmd) do |process|
+			process.each do |line|
+				grants << new( db_line_to_hash(line) )
+			end
+		end
+		
+		
+		return grants
+	end
+	def self.user_line_to_hash(line)
+		fields = line.chomp.split(/\t/)
+		{
+			:name => fields[0],
+			:ensure => :present
+		}
+	end
+	def self.db_line_to_hash(line)
+		fields = line.chomp.split(/\t/)
+		{
+			:name => fields[0],
+			:ensure => :present
+		}
+	end
+
 
 	def mysql_flush
 		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
@@ -104,9 +134,9 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 
 		case name[:type]
 		when :user
-			privs = mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", 'select * from user where user="%s" and host="%s"' % [ name[:user], name[:host] ]
+			privs = mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", 'SELECT * FROM user WHERE user="%s" AND host="%s"' % [ name[:user], name[:host] ]
 		when :db
-			privs = mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", 'select * from db where user="%s" and host="%s" and db="%s"' % [ name[:user], name[:host], name[:db] ]
+			privs = mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", 'SELECT * FROM db WHERE user="%s" AND host="%s" AND db="%s"' % [ name[:user], name[:host], name[:db] ]
 		end
 
 		if privs.match(/^$/)
@@ -155,45 +185,6 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", stmt
 		mysql_flush
 	end
-
-
-	#
-	# Find the existing instances
-	#
-#	def self.user_line_to_hash(line)
-#		fields = line.chomp.split(/\t/)
-#		{
-#			:name => fields[0],
-#			:ensure => :present
-#		}
-#	end
-#	def self.db_line_to_hash(line)
-#		fields = line.chomp.split(/\t/)
-#		{
-#			:name => fields[0],
-#			:ensure => :present
-#		}
-#	end
-#
-#	def self.instances
-#		grants = []
-#
-#		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host) from user'"
-#		execpipe(cmd) do |process|
-#			process.each do |line|
-#				grants << new( query_line_to_hash(line) )
-#			end
-#		end
-#
-#		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host, "/", db) from db'"
-#		execpipe(cmd) do |process|
-#			process.each do |line|
-#				grants << new( query_line_to_hash(line) )
-#			end
-#		end
-#
-#		return grants
-#	end
 	
 	#
 	# Create a new resource.
