@@ -63,7 +63,6 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 		}
 	end
 
-
 	def mysql_flush
 		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
 	end
