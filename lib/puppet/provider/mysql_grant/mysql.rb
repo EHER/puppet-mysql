@@ -29,45 +29,33 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 	commands :mysql => '/usr/bin/mysql'
 	commands :mysqladmin => '/usr/bin/mysqladmin'
 
-	# Find the existing instances
+	# Find the existing instances of the resource.
 	def self.instances
 		grants = []
-		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host) from user'"
+		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -Be 'select concat(user, \"@\", host) from user'"
 		execpipe(cmd) do |process|
 			process.each do |line|
-				grants << new( user_line_to_hash(line) )
+				grants << new( {
+					:ensure => :present,
+					:name => line.chomp
+				} )
 			end
 		end
-		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'select concat(user, \"@\", host, \"/\", db) from db'"
+		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -Be 'select concat(user, \"@\", host, \"/\", db) from db'"
 		execpipe(cmd) do |process|
 			process.each do |line|
-				grants << new( db_line_to_hash(line) )
+				grants << new( {
+					:ensure => :present,
+					:name => line.chomp
+				} )
 			end
 		end
-		
-		
+
+
 		return grants
 	end
-	def self.user_line_to_hash(line)
-		fields = line.chomp.split(/\t/)
-		{
-			:name => fields[0],
-			:ensure => :present
-		}
-	end
-	def self.db_line_to_hash(line)
-		fields = line.chomp.split(/\t/)
-		{
-			:name => fields[0],
-			:ensure => :present
-		}
-	end
 
-	def mysql_flush
-		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
-	end
-
-	# this parses the
+	# Utility to parse the resource name.
 	def split_name(string)
 		matches = /^([^@]*)@([^\/]*)(\/(.*))?$/.match(string).captures.compact
 		case matches.length
@@ -87,46 +75,59 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 		end
 	end
 
-	def create_row
-		unless @resource.should(:privileges).empty?
-			name = split_name(@resource[:name])
-			case name[:type]
+	# Utility to flush MySQL privileges
+	def mysql_flush
+		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
+	end
+
+	# Check the existance of an instance of the resource.
+	def exists?
+		fields = split_name(@resource[:name])
+
+		stmt = ""
+		case fields[:type]
+		when :user
+			stmt = "SELECT '1' FROM user WHERE user='%s' AND host='%s'" % [fields[:user], fields[:host]]
+		when :db
+			stmt = "SELECT '1' FROM db WHERE user='%s' AND host='%s' AND db='%s'" % [fields[:user], fields[:host], fields[:db]]
+		end
+
+		not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", '-NBe', stmt).empty?
+	end
+
+	# Create an instance of the resource.
+	def create
+		unless exists?
+			fields = split_name(@resource[:name])
+
+			stmt = ""
+			case fields[:type]
 			when :user
-				mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "INSERT INTO user (host, user) VALUES ('%s', '%s')" % [
-					name[:host], name[:user],
-				]
+				stmt = "INSERT INTO user (user, host) VALUES ('%s', '%s')" % [fields[:user], fields[:host]]
 			when :db
-				mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "INSERT INTO db (host, user, db) VALUES ('%s', '%s', '%s')" % [
-					name[:host], name[:user], name[:db],
-				]
+				stmt = "INSERT INTO db (user, host, db) VALUES ('%s', '%s', '%s')" % [fields[:user], fields[:host], fields[:db]]
 			end
-			mysql_flush
+
+			mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", '-NBe', stmt
 		end
 	end
 
-	def row_exists?
-		name = split_name(@resource[:name])
-		fields = [:user, :host]
-		if name[:type] == :db
-			fields << :db
+	# Destroy an instance of the resource.
+	def destroy
+		fields = split_name(@resource[:name])
+
+		stmt = ""
+		case fields[:type]
+		when :user
+			stmt = "DELETE FROM user WHERE user='%s' AND host='%s'" % [fields[:user], fields[:host]]
+		when :db
+			stmt = "DELETE FROM db WHERE user='%s' AND host='%s' AND db='%s'" % [fields[:user], fields[:host], fields[:db]]
 		end
-		not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", 'SELECT "1" FROM %s WHERE %s' % [ name[:type], fields.map do |f| "%s = '%s'" % [f, name[f]] end.join(' AND ')]).empty?
+
+		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", '-NBe', stmt
 	end
 
-
-	def all_privs_set?
-		all_privs = case split_name(@resource[:name])[:type]
-			when :user
-				MYSQL_USER_PRIVS
-			when :db
-				MYSQL_DB_PRIVS
-		end
-		all_privs = all_privs.collect do |p| p.to_s end.sort.join("|")
-		privs = privileges.collect do |p| p.to_s end.sort.join("|")
-
-		all_privs == privs
-	end
-
+	# Get the value of the privileges attribute
 	def privileges
 		name = split_name(@resource[:name])
 		privs = ""
@@ -156,19 +157,19 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 			create_row
 		end
 
-		# puts "Setting privs: ", privs.join(", ")
 		name = split_name(@resource[:name])
+
 		stmt = ''
 		where = ''
 		all_privs = []
 		case name[:type]
 		when :user
-			stmt = 'update user set '
-			where = ' where user="%s" and host="%s"' % [ name[:user], name[:host] ]
+			stmt = 'UPDATE user SET '
+			where = ' WHERE user="%s" AND host="%s"' % [ name[:user], name[:host] ]
 			all_privs = MYSQL_USER_PRIVS
 		when :db
-			stmt = 'update db set '
-			where = ' where user="%s" and host="%s" and db="%s"' % [ name[:user], name[:host], name[:db] ]
+			stmt = 'UPDATE db SET '
+			where = ' WHERE user="%s" AND host="%s" AND db="%s"' % [ name[:user], name[:host], name[:db] ]
 			all_privs = MYSQL_DB_PRIVS
 		end
 
@@ -181,51 +182,8 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 		# puts "set:", set
 		stmt = stmt << set << where
 
-		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", stmt
+		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-Be", stmt
 		mysql_flush
-	end
-	
-	#
-	# Create a new resource.
-	#
-	def create
-		create_row
-		#mysql_flush
-	end
-	
-	#
-	# Destroy a resource
-	#
-	def destroy
-		name = split_name(@resource[:name])
-
-		case name[:type]
-		when :user
-			mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "DELETE FROM user WHERE host='%s' AND user='%s')" % [
-				name[:host], name[:user],
-			]
-		when :db
-			mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "DELETE FROM db WHERE host='%s' AND user='%s' AND db='%s'" % [
-				name[:host], name[:user], name[:db],
-			]
-		end
-		mysql_flush
-	end
-	
-	#
-	# Check whether a resource exists.
-	#
-	def exists?
-		#stmt = ''
-		#when :user
-			#stmt = 'SELECT \'1\' FROM user WHERE user="%s" AND host="%s"' % [ name[:user], name[:host] ]
-		#when :db
-			#stmt = 'SELECT \'1\' FROM db WHERE user="%s" AND host="%s" AND db="%s"' % [ name[:user], name[:host], name[:db] ]
-		#end
-
-		#not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", stmt).empty?
-		
-		row_exists?
 	end
 
 end
