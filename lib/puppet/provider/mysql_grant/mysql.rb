@@ -95,6 +95,22 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 		not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", '-NBe', stmt).empty?
 	end
 
+	# Check whether the instance has all privileges enabled.
+	def all_privs_set?
+		fields = split_name(@resource[:name])
+
+		all_privs = case fields[:type]
+			when :user
+				MYSQL_USER_PRIVS
+			when :db
+				MYSQL_DB_PRIVS
+		end
+		all_privs = all_privs.collect do |p| p.to_s end.sort.join("|")
+		privs = privileges.collect do |p| p.to_s end.sort.join("|")
+
+		all_privs == privs
+	end
+
 	# Create an instance of the resource.
 	def create
 		unless exists?
