@@ -5,8 +5,7 @@
 
 require 'puppet/provider/package'
 
-Puppet::Type.type(:mysql_database).provide(:mysql,
-		:parent => Puppet::Provider::Package) do
+Puppet::Type.type(:mysql_database).provide(:mysql, :parent => Puppet::Provider::Package) do
 
 	desc "Use mysql as database."
 	commands :mysqladmin => '/usr/bin/mysqladmin'
@@ -45,6 +44,7 @@ Puppet::Type.type(:mysql_database).provide(:mysql,
 	def create
 		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "create", @resource[:name]
 	end
+
 	def destroy
 		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "-f", "drop", @resource[:name]
 	end
