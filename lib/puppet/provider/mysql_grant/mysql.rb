@@ -55,6 +55,36 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 		return grants
 	end
 
+	# "Query" an instance?
+	def query
+		fields = split_name(@resource[:name])
+
+		stmt = ""
+		case fields[:type]
+		when :user
+			stmt = "SELECT concat(user, \"@\", host) FROM user WHERE user=\"%s\" AND host=\"%s\"" % [ fields[:user], fields[:host] ]
+		when :db
+			stmt = "SELECT concat(user, \"@\", host, \"/\", db) FROM db WHERE user=\"%s\" AND host=\"%s\" AND db=\"%s\"" % [ fields[:user], fields[:host], fields[:db] ]
+		end
+
+		result = {}
+		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe '#{stmt}'"
+		execpipe(cmd) do |process|
+			process.each do |line|
+				unless result.empty?
+					raise Puppet::Error,
+					"Got multiple results for user '%s'" % @resource[:name]
+				end
+				result = {
+					:ensure => :present,
+					:name => line.chomp
+				}
+			end
+		end
+
+		result
+	end
+
 	# Utility to parse the resource name.
 	def split_name(string)
 		matches = /^([^@]*)@([^\/]*)(\/(.*))?$/.match(string).captures.compact
