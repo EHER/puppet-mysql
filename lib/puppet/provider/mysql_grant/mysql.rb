@@ -77,7 +77,8 @@ Puppet::Type.type(:mysql_grant).provide(:mysql, :parent => Puppet::Provider::Pac
 				end
 				result = {
 					:ensure => :present,
-					:name => line.chomp
+					:name => line.chomp,
+					:privileges => []
 				}
 			end
 		end
