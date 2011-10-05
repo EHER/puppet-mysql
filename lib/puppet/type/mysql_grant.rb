@@ -1,15 +1,10 @@
-# mysql/lib/puppet/type/mysql_grant.rb
-#
-# Manage MySQL permission grants as Puppet resources.
-#
-
+# This has to be a separate type to enable collecting
 Puppet::Type.newtype(:mysql_grant) do
   @doc = "Manage a MySQL database user's rights."
+  #ensurable
 
-  ensurable
-
-  # Automatically require any MySQL database mentioned in the grant.
   autorequire :mysql_database do
+    # puts "Starting db autoreq for %s" % self[:name]
     reqs = []
     matches = self[:name].match(/^([^@]+)@([^\/]+)\/(.+)$/)
     unless matches.nil?
@@ -19,7 +14,6 @@ Puppet::Type.newtype(:mysql_grant) do
     reqs
   end
 
-  # Automatically require any MySQL user mentioned in the grant.
   autorequire :mysql_user do
     # puts "Starting user autoreq for %s" % self[:name]
     reqs = []
@@ -31,37 +25,12 @@ Puppet::Type.newtype(:mysql_grant) do
     reqs
   end
 
-
-  # MySQL grant resource describes the user, host and, optionally, database.
   newparam(:name) do
     desc "The primary key: either user@host for global privilges or user@host/database for database specific privileges"
+  end
 
-    validate do |value|
-      # Check that it's in the correct format
-      unless value =~ /^([^@]+)@([^\/]+)(\/(.+))?$/
-        raise ArgumentError, "%s is not a valid MySQL grant name. The correct format is user@host or user@host/database" % value
-      end
-
-      # Check that the user portion isn't too long.
-      user, host = value.split('@')
-      if user.length > 16
-        raise ArgumentError, "%s is too long. MySQL user names are limited to 16 characters." % value
-      end
-    end #validate
-
-  end # newparam(:name)
-
-  # Server is mainly for collecting stuff on the right server.
-  newparam(:server) do
-    desc "The server to grant these privileges on."
-
-    default = :fqdn
-  end #newparam(:server)
-
-  # The privileges to grant.
   newproperty(:privileges, :array_matching => :all) do
     desc "The privileges the user should have. The possible values are implementation dependent."
-
     munge do |v|
       symbolize(v)
     end
@@ -91,7 +60,7 @@ Puppet::Type.newtype(:mysql_grant) do
     # use the sorted outputs for comparison
     def insync?(is)
       if defined? @should and @should
-        case self.should_to_s
+        case self.should_to_s 
         when "all"
           self.provider.all_privs_set?
         when self.is_to_s(is)

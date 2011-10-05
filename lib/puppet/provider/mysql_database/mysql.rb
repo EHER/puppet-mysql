@@ -1,59 +1,37 @@
-# mysql/lib/puppet/provider/mysql_database/mysql.rb
-#
-# Implement MySQL database operations for MySQL (as if there's another choice).
-#
+Puppet::Type.type(:mysql_database).provide(:mysql) do
 
-require 'puppet/provider/package'
+  desc "Create mysql database."
 
-Puppet::Type.type(:mysql_database).provide(:mysql, :parent => Puppet::Provider::Package) do
+  defaultfor :kernel => 'Linux'
 
-	desc "Use mysql as database."
-	commands :mysqladmin => '/usr/bin/mysqladmin'
-	commands :mysql => '/usr/bin/mysql'
+  commands :mysqladmin => 'mysqladmin'
+  commands :mysql      => 'mysql'
+  commands :mysqlshow  => 'mysqlshow'
+	
+  def create
+    mysql('-NBe', "CREATE DATABASE #{@resource[:name]} CHARACTER SET #{resource[:charset]}")
+  end
 
-	# retrieve the current set of mysql users
-	def self.instances
-		dbs = []
+  def destroy
+    mysqladmin('-f', 'drop', @resource[:name])
+  end
 
-		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'show databases'"
-		execpipe(cmd) do |process|
-			process.each do |line|
-				dbs << new( { :ensure => :present, :name => line.chomp } )
-			end
-		end
-		return dbs
-	end
+  def exists?
+    begin
+      mysql('-NBe', "show databases").match(/^#{@resource[:name]}$/)
+    rescue => e
+      debug(e.message)
+      return nil
+    end
+  end
+ 
+  def charset
+    mysql('-NBe', "show create database #{resource[:name]}").match(/.*?(\S+)\s\*\//)[1]
+  end
 
-	def query
-		result = {
-			:name => @resource[:name],
-			:ensure => :absent
-		}
-
-		cmd = "#{command(:mysql)} --defaults-file=/etc/mysql/debian.cnf mysql -NBe 'show databases'"
-		execpipe(cmd) do |process|
-			process.each do |line|
-				if line.chomp.eql?(@resource[:name])
-					result[:ensure] = :present
-				end
-			end
-		end
-		result
-	end
-
-	def create
-		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "create", @resource[:name]
-	end
-
-	def destroy
-		mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "-f", "drop", @resource[:name]
-	end
-
-	def exists?
-		if mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", "show databases").match(/^#{@resource[:name]}$/)
-			true
-		else
-			false
-		end
-	end
+  def charset=(value)
+    mysql('-NBe', "alter database #{resource[:name]} CHARACTER SET #{value}")
+  end
+  # retrieve the current set of mysql databases
 end
+
