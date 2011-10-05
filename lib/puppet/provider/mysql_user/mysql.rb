@@ -8,31 +8,31 @@ Puppet::Type.type(:mysql_user).provide(:mysql) do
   commands :mysqladmin => 'mysqladmin'
 
   def create
-    mysql "mysql", "--defaults-file=/etc/mysql/debian.cnf", "-e", "create user '%s' identified by PASSWORD '%s'" % [ @resource[:name].sub("@", "'@'"), @resource.value(:password_hash) ]
+    mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "CREATE USER '%s' identified by PASSWORD '%s'" % [ @resource[:name].sub("@", "'@'"), @resource.value(:password_hash) ]
     mysql_flush
   end
  
   def destroy
-    mysql "mysql", "--defaults-file=/etc/mysql/debian.cnf", "-e", "drop user '%s'" % @resource.value(:name).sub("@", "'@'")
+    mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "DROP USER '%s'" % @resource.value(:name).sub("@", "'@'")
     mysql_flush
   end
  
   def exists?
-    not mysql("mysql", "--defaults-file=/etc/mysql/debian.cnf", "-NBe", "select '1' from user where CONCAT(user, '@', host) = '%s'" % @resource.value(:name)).empty?
+    not mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", "SELECT '1' FROM user WHERE CONCAT(user, '@', host) = '%s'" % @resource.value(:name)).empty?
   end
  
   def password_hash
-    mysql("mysql", "--defaults-file=/etc/mysql/debian.cnf", "-NBe", "select password from user where CONCAT(user, '@', host) = '%s'" % @resource.value(:name)).chomp
+    mysql("--defaults-file=/etc/mysql/debian.cnf", "mysql", "-NBe", "SELECT password FROM user WHERE CONCAT(user, '@', host) = '%s'" % @resource.value(:name)).chomp
   end
  
   def password_hash=(string)
-    mysql "mysql", "--defaults-file=/etc/mysql/debian.cnf", "-e", "SET PASSWORD FOR '%s' = '%s'" % [ @resource[:name].sub("@", "'@'"), string ]
+    mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "SET PASSWORD FOR '%s' = '%s'" % [ @resource[:name].sub("@", "'@'"), string ]
     mysql_flush
   end
 
   private
 
   def mysql_flush
-    mysqladmin "flush-privileges"
+    mysqladmin "--defaults-file=/etc/mysql/debian.cnf", "flush-privileges"
   end
 end
