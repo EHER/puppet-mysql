@@ -69,7 +69,8 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 	end
 
 	def destroy
-		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "REVOKE ALL ON '%s'.* FROM '%s@%s'" % [ @resource[:privileges], @resource[:database], @resource[:name], @resource[:host] ]
+		fields = split_name(@resource[:name])
+		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "REVOKE ALL ON '%s'.* FROM '%s@%s'" % [ fields[:database], fields[:name], fields[:host] ]
 	end
 	
 	def exists?
