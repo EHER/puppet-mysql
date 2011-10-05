@@ -72,6 +72,10 @@ Puppet::Type.type(:mysql_grant).provide(:mysql) do
 		mysql "--defaults-file=/etc/mysql/debian.cnf", "mysql", "-e", "REVOKE ALL ON '%s'.* FROM '%s@%s'" % [ @resource[:privileges], @resource[:database], @resource[:name], @resource[:host] ]
 	end
 	
+	def exists?
+		row_exists?
+	end
+
 	def row_exists?
 		name = split_name(@resource[:name])
 		fields = [:user, :host]
