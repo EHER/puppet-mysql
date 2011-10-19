@@ -2,6 +2,7 @@ class mysql::server::configure (
 	$root_defaults_path = $mysql::params::root_defaults_path,
 	$root_host = $mysql::params::root_defaults_host,
 	$root_user = $mysql::params::root_defaults_user,
+	$root_group = $mysql::params::root_defaults_group,
 	$root_password = $mysql::params::root_defaults_password,
 	$root_socket = $mysql::params::root_defaults_socket
 ) inherits mysql::params {
@@ -13,8 +14,8 @@ class mysql::server::configure (
 	file { 'generaterootcnf.sh' :
 		path => $mysql::params::generate_root_cnf,
 		ensure => file,
-		owner => root,
-		group => root,
+		owner => $root_user,
+		group => $root_group,
 		mode => 0755,
 		source => 'puppet:///modules/mysql/generaterootcnf.sh',
 	}
