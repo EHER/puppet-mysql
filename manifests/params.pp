@@ -2,16 +2,19 @@ class mysql::params {
 
 	$server_packages = $operatingsystem ? {
 		debian => ["mysql-server"],
+		ubuntu => ["mysql-server"],
 		freebsd => ["mysql51-server"],
 	}
 
 	$server_services = $operatingsystem ? {
 		debian => "mysql",
+		ubuntu => "mysql",
 		freebsd => "mysql-server",
 	}
 
 	$root_defaults_path = $operatingsystem ? {
 		debian => "/etc/mysql/root.cnf",
+		ubuntu => "/etc/mysql/root.cnf",
 		freebsd => "/usr/local/etc/mysql/root.cnf",
 	}
 
@@ -23,6 +26,7 @@ class mysql::params {
 	$root_default_user = "root"
 	$root_default_group = $operatingsystem ? {
 		debian => "root",
+		ubuntu => "root",
 		freebsd => "wheel",
 	}
 
